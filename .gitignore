@@ -1,0 +1,141 @@
+# =========================
+# Maven
+# =========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.properties
+
+# =========================
+# IntelliJ IDEA
+# =========================
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# =========================
+# Eclipse
+# =========================
+.project
+.classpath
+.settings/
+.factorypath
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+
+# =========================
+# NetBeans
+# =========================
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# =========================
+# Java
+# =========================
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+log/
+
+# =========================
+# Spring Boot
+# =========================
+spring.log
+
+# =========================
+# Environment Files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Application Secrets
+# =========================
+application-local.yml
+application-local.yaml
+application-prod.yml
+application-prod.yaml
+application-secrets.yml
+application-secrets.yaml
+
+# =========================
+# Docker
+# =========================
+docker-data/
+postgres-data/
+
+# =========================
+# Terraform
+# =========================
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# =========================
+# Kubernetes
+# =========================
+*.kubeconfig
+
+# =========================
+# Temporary Files
+# =========================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# =========================
+# Coverage
+# =========================
+coverage/
+jacoco.exec
+/site/
+
+# =========================
+# Generated Documentation
+# =========================
+apidocs/
+
+# =========================
+# Mac/Linux
+# =========================
+.fuse_hidden*
+.nfs*
+
+# =========================
+# Windows
+# =========================
+ehthumbs.db
