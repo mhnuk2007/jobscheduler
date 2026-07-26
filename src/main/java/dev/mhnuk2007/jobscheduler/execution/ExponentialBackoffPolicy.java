@@ -19,7 +19,7 @@ public class ExponentialBackoffPolicy implements RetryPolicy {
     }
 
     @Override
-    public Duration nexDelay(int completedAttempt) {
+    public Duration nextDelay(int completedAttempt) {
         long exponential = baseMillis * (1L << Math.min(completedAttempt, 20));
         long capped = Math.min(capMillis, exponential);
         long jittered = ThreadLocalRandom.current().nextLong(0, capped + 1);
