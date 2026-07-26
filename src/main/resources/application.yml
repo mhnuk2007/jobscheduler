@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: job-scheduler
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/job_scheduler
+    username: postgres
+    password: "0000"
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+  flyway:
+    enabled: true
+    locations: db/migration
+
+logging:
+  level:
+    org.springframework.jdbc: DEBUG
+    org.flywaydb: DEBUG
