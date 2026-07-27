@@ -15,6 +15,12 @@ spring:
     enabled: true
     locations: db/migration
 
+scheduler:
+  worker-id: ${HOSTNAME:worker-local}
+  poll-interval-ms: 1000
+  poll-batch-size: 20
+  executor-pool-size: 8
+
 retry:
   base-delay-ms: 2000
   max-delay-ms: 600000
