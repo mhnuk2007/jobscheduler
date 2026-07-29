@@ -12,14 +12,14 @@ public record JobSubmitRequest(
         Instant runAt,
         String cronExpression,
         @Valid @NotNull CallbackRequest callback,
-        @Min(0) @Max(20) int maxRetries,
-        @Min(1) @Max(3600) int timeoutSeconds,
+        @Min(0) @Max(20) Integer maxRetries,
+        @Min(1) @Max(3600) Integer timeoutSeconds,
         @Size(max = 128) String idempotencyKey
-        ) {
+) {
     public record CallbackRequest(
             @NotBlank String url,
             @Pattern(regexp = "GET|POST|PUT|PATCH|DELETE") String method,
             Map<String, String> headers,
             Object body
-    ){}
+    ) {}
 }

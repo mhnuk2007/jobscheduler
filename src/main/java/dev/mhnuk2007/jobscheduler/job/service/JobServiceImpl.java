@@ -20,28 +20,32 @@ import java.util.UUID;
 
 @Service
 public class JobServiceImpl implements JobService {
+
     private final JobRepository jobRepository;
     private final JobRunRepository jobRunRepository;
     private final CronEvaluator cronEvaluator;
-    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository,  CronEvaluator cronEvaluator) {
+
+    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository, CronEvaluator cronEvaluator) {
         this.jobRepository = jobRepository;
         this.jobRunRepository = jobRunRepository;
         this.cronEvaluator = cronEvaluator;
     }
+
     @Override
     @Transactional
     public Job submit(JobSubmitRequest request, String ownerId) {
-        if (request.idempotencyKey() != null){
-            Job existing  = jobRepository.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
-            if (existing != null){
-                return  existing;
+        if (request.idempotencyKey() != null) {
+            Job existing = jobRepository.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
+            if (existing != null) {
+                return existing;
             }
         }
         validateTypeSpecificFields(request);
-        Instant nextRunAt = switch (request.type()){
+        Instant nextRunAt = switch (request.type()) {
             case ONE_OFF -> request.runAt();
-            case RECURRING -> cronEvaluator.nextFireTime(request.cronExpression(),Instant.now());
+            case RECURRING -> cronEvaluator.nextFireTime(request.cronExpression(), Instant.now());
         };
+
         Job job = Job.builder()
                 .jobId("job_" + UUID.randomUUID())
                 .ownerId(ownerId)
@@ -50,8 +54,8 @@ public class JobServiceImpl implements JobService {
                 .runAt(request.runAt())
                 .cronExpression(request.cronExpression())
                 .nextRunAt(nextRunAt)
-                .maxRetries(request.maxRetries() == 0 ? 3 : request.maxRetries())
-                .timeoutSeconds(request.timeoutSeconds() == 0 ? 30 : request.timeoutSeconds())
+                .maxRetries(request.maxRetries() == null || request.maxRetries() == 0 ? 3 : request.maxRetries())
+                .timeoutSeconds(request.timeoutSeconds() == null || request.timeoutSeconds() == 0 ? 30 : request.timeoutSeconds())
                 .idempotencyKey(request.idempotencyKey())
                 .callback(toCallback(request.callback()))
                 .build();
@@ -73,7 +77,7 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public void cancelOwned(String jobId, String ownerId) {
         Job job = findOwnedOrThrow(jobId, ownerId);
-        if (job.getStatus() == JobStatus.RUNNING){
+        if (job.getStatus() == JobStatus.RUNNING) {
             throw new IllegalJobStateException("cannot cancel job currently RUNNING: " + jobId);
         }
         job.setStatus(JobStatus.CANCELLED);
@@ -82,7 +86,7 @@ public class JobServiceImpl implements JobService {
 
     private Job findOwnedOrThrow(String jobId, String ownerId) {
         Job job = jobRepository.findByJobId(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
-        if(!job.getOwnerId().equals(ownerId)){
+        if (!job.getOwnerId().equals(ownerId)) {
             throw new JobNotFoundException(jobId);
         }
         return job;
@@ -91,11 +95,11 @@ public class JobServiceImpl implements JobService {
     private void validateTypeSpecificFields(JobSubmitRequest request) {
         switch (request.type()) {
             case ONE_OFF -> {
-                if(request.runAt() == null){
+                if (request.runAt() == null) {
                     throw new InvalidJobRequestException("runAt is required for ONE_OFF jobs");
                 }
             }
-            case RECURRING ->  {
+            case RECURRING -> {
                 if (request.cronExpression() == null || !cronEvaluator.isValid(request.cronExpression())) {
                     throw new InvalidJobRequestException("a valid cronExpression is required for RECURRING jobs");
                 }
