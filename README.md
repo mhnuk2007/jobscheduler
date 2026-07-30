@@ -11,14 +11,15 @@ See [`problemstatement.md`](./problemstatement.md), [`functionalrequirements.md`
 ## Features
 
 - One-off jobs, executed at or after a target time
-- Recurring jobs on a cron schedule *(implemented, not yet exercised end-to-end — see Verified section)*
+- Recurring jobs on a cron schedule (6-field, Spring `CronExpression` format — seconds included)
 - Exactly-once execution across concurrent worker instances
 - HTTP callback execution with per-attempt outcome recording
 - Exponential backoff retries
-- Automatic dead-lettering after retries are exhausted
+- Automatic dead-lettering after retries are exhausted, with manual replay
+- Pause/resume for recurring jobs
 - Full execution history, correlated by `jobId` via MDC logging
-- REST API: submit, get status, get run history, cancel
-- JWT authentication (RS256) — every endpoint requires a valid bearer token; job ownership is enforced from the token's `sub` claim
+- REST API: submit, get status, get run history, cancel, pause, resume, replay
+- JWT authentication (RS256) — every endpoint requires a valid bearer token; job ownership is enforced from the token's `sub` claim, scoped per-owner throughout (including idempotency keys)
 - SSRF guard on callback URLs — blocks cloud metadata endpoints, loopback, and private-range addresses at both submission and execution time
 
 ## Stack
@@ -83,12 +84,13 @@ print(jwt.encode(payload, open('jwt-private.pem', 'rb').read(), algorithm='RS256
 ")
 ```
 
-The `sub` claim becomes the job's owner — only requests bearing a token with the matching `sub` can view, cancel, or list runs for a job. A different `sub` (or no token at all) gets `404`/`401` respectively; cross-owner access is deliberately indistinguishable from "job doesn't exist," to avoid leaking which job IDs are in use.
+The `sub` claim becomes the job's owner — only requests bearing a token with the matching `sub` can view, cancel, pause, resume, or replay a job. A different `sub` (or no token at all) gets `404`/`401` respectively; cross-owner access is deliberately indistinguishable from "job doesn't exist," to avoid leaking which job IDs are in use. Idempotency keys are also scoped per owner — two different users may reuse the same key independently.
 
 **Local dev only** — `jwt-private.pem` and `jwt-public.pem` are gitignored and must be generated locally; they are never committed.
 
 ## Submitting a Job
 
+One-off:
 ```bash
 curl -X POST http://localhost:8080/api/v1/jobs \
   -H "Content-Type: application/json" \
@@ -102,12 +104,34 @@ curl -X POST http://localhost:8080/api/v1/jobs \
   }'
 ```
 
+Recurring (note: 6-field cron, seconds first — a 5-field Unix-style expression is rejected):
+```bash
+curl -X POST http://localhost:8080/api/v1/jobs \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "type": "RECURRING",
+    "cronExpression": "0 */1 * * * *",
+    "callback": { "url": "https://httpbin.org/post", "method": "POST" }
+  }'
+```
+
 Then check status and run history:
 
 ```bash
 curl http://localhost:8080/api/v1/jobs/<jobId> -H "Authorization: Bearer $TOKEN"
 curl http://localhost:8080/api/v1/jobs/<jobId>/runs -H "Authorization: Bearer $TOKEN"
 ```
+
+Lifecycle actions:
+```bash
+curl -X POST http://localhost:8080/api/v1/jobs/<jobId>/pause   -H "Authorization: Bearer $TOKEN"
+curl -X POST http://localhost:8080/api/v1/jobs/<jobId>/resume  -H "Authorization: Bearer $TOKEN"
+curl -X POST http://localhost:8080/api/v1/jobs/<jobId>/replay  -H "Authorization: Bearer $TOKEN"
+curl -X DELETE http://localhost:8080/api/v1/jobs/<jobId>       -H "Authorization: Bearer $TOKEN"
+```
+
+`pause`/`resume` are only valid for `RECURRING` jobs; `replay` is only valid for a `DEAD_LETTER` job.
 
 ## Running Tests
 
@@ -150,18 +174,19 @@ Proven with real, manual end-to-end tests against a running instance — not jus
 - One-off job failure path: claim → HTTP 500 → exponential backoff → retry → `DEAD_LETTER`
 - Accurate HTTP status codes recorded on both success and failure
 - Live polling: newly inserted jobs are picked up without restarting the app
-- Full REST API: submit, get, get-runs, cancel — via HTTP, not raw SQL
-- Idempotency: resubmitting with the same key returns the original job, not a duplicate
+- Full REST API: submit, get, get-runs, cancel, pause, resume, replay — via HTTP, not raw SQL
+- Idempotency: resubmitting with the same key returns the original job; scoped per-owner, so two different users may reuse the same key independently
 - JWT authentication: valid signed tokens accepted; missing/invalid tokens rejected with `401`
-- Ownership isolation: a job is only visible/cancellable by its creator's token `sub`; cross-owner access returns `404`, indistinguishable from a nonexistent job
+- Ownership isolation: a job is only visible/actionable by its creator's token `sub` — verified on every endpoint, including pause/resume/replay; cross-owner access returns `404`, indistinguishable from a nonexistent job
 - SSRF guard: callback URLs targeting the cloud metadata address (`169.254.169.254`) and loopback/internal addresses are rejected with `400` at submission time; legitimate external URLs are unaffected
-
-Recurring (cron) jobs have the rescheduling logic implemented (`CronEvaluator`, `HttpCallbackExecutor.onSuccess`) but have not yet been run end-to-end — treat as unverified until tested.
+- Recurring jobs: submitted, correctly reschedule `nextRunAt` on each successful firing, and remain in `SCHEDULED` (never a terminal state) between cycles
+- Pause: verified to actually halt claiming (zero new executions across a 2-minute window), not just update a status label
+- Resume: verified to restart claiming — a new execution appears at the freshly computed `nextRunAt`
+- Replay: verified via run history that a dead-lettered job is re-claimed and re-executed after replay, not just that its status field changes
+- Type guards: pause/resume correctly reject `ONE_OFF` jobs with `409`
 
 ## Roadmap
 
-- End-to-end verification of recurring cron jobs
-- Pause / resume / replay endpoints
 - Prometheus metrics
 - Kubernetes deployment, Terraform infrastructure
 
