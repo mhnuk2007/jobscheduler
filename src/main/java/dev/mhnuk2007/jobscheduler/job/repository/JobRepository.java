@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface JobRepository extends JpaRepository<Job, Long> {
     Optional<Job> findByJobId(String jobId);
-    Optional<Job> findByIdempotencyKey(String idempotencyKey);
+    Optional<Job> findByOwnerIdAndIdempotencyKey(String ownerId, String idempotencyKey);
 }

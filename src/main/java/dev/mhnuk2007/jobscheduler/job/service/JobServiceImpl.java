@@ -41,7 +41,7 @@ public class JobServiceImpl implements JobService {
             throw new InvalidJobRequestException("callback URL is not permitted" + request.callback().url());
         }
         if (request.idempotencyKey() != null) {
-            Job existing = jobRepository.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
+            Job existing = jobRepository.findByOwnerIdAndIdempotencyKey(ownerId, request.idempotencyKey()).orElse(null);
             if (existing != null) {
                 return existing;
             }
@@ -94,7 +94,7 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public Job pauseOwned(String jobId, String ownerId) {
         Job job = findOwnedOrThrow(jobId, ownerId);
-        requiredType(job, JobType.RECURRING, "pause");
+        requireType(job, JobType.RECURRING, "pause");
         job.setStatus(JobStatus.PAUSED);
         return jobRepository.save(job);
     }
@@ -103,7 +103,7 @@ public class JobServiceImpl implements JobService {
     @Transactional
     public Job resumeOwned(String jobId, String ownerId) {
         Job job = findOwnedOrThrow(jobId, ownerId);
-        requiredType(job, JobType.RECURRING, "resume");
+        requireType(job, JobType.RECURRING, "resume");
         if (job.getStatus() != JobStatus.PAUSED) {
             throw new IllegalJobStateException("cannot resume job not currently PAUSED: " + jobId);
         }
@@ -151,9 +151,10 @@ public class JobServiceImpl implements JobService {
                 .build();
     }
 
-    private void requiredType(Job job, JobType expected, String action) {
+    private void requireType(Job job, JobType expected, String action) {
         if (job.getType() != expected) {
-            throw new IllegalJobStateException("cannot " + action + "a " + job.getType() + "job: " + job.getJobId());
+            throw new IllegalJobStateException(
+                    "cannot " + action + " a " + job.getType() + " job: " + job.getJobId());
         }
     }
 }

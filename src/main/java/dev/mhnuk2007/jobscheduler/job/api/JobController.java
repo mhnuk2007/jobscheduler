@@ -54,4 +54,22 @@ public class JobController {
         jobService.cancelOwned(jobId, jwt.getSubject());
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{jobId}/pause")
+    public JobResponse pause(@PathVariable String jobId, @AuthenticationPrincipal Jwt jwt) {
+        return jobMapper.toResponse(jobService.pauseOwned(jobId, jwt.getSubject()));
+    }
+
+    @PostMapping("/{jobId}/resume")
+    public JobResponse resume(@PathVariable String jobId, @AuthenticationPrincipal Jwt jwt) {
+        return jobMapper.toResponse(jobService.resumeOwned(jobId, jwt.getSubject()));
+    }
+
+    @PostMapping("/{jobId}/replay")
+    public ResponseEntity<Void> replay(@PathVariable String jobId, @AuthenticationPrincipal Jwt jwt) {
+        jobService.replayOwned(jobId, jwt.getSubject());
+        return ResponseEntity.accepted().build();
+    }
+
+
 }
