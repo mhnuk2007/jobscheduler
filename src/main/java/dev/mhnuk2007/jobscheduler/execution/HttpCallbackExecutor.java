@@ -4,6 +4,7 @@ import dev.mhnuk2007.jobscheduler.job.domain.*;
 import dev.mhnuk2007.jobscheduler.job.repository.JobRepository;
 import dev.mhnuk2007.jobscheduler.job.repository.JobRunRepository;
 import dev.mhnuk2007.jobscheduler.scheduling.CronEvaluator;
+import dev.mhnuk2007.jobscheduler.security.CallbackUrlValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
@@ -27,23 +28,30 @@ public class HttpCallbackExecutor implements JobExecutor {
     private final RetryPolicy retryPolicy;
     private final DeadLetterHandler deadLetterHandler;
     private final CronEvaluator cronEvaluator;
+    private final CallbackUrlValidator callbackUrlValidator;
 
     public HttpCallbackExecutor(RestClient.Builder restClientBuilder,
                                 JobRepository jobRepository,
                                 JobRunRepository jobRunRepository,
                                 RetryPolicy retryPolicy,
                                 DeadLetterHandler deadLetterHandler,
-                                CronEvaluator cronEvaluator) {
+                                CronEvaluator cronEvaluator, CallbackUrlValidator callbackUrlValidator) {
         this.restClient = restClientBuilder.build();
         this.jobRepository = jobRepository;
         this.jobRunRepository = jobRunRepository;
         this.retryPolicy = retryPolicy;
         this.deadLetterHandler = deadLetterHandler;
         this.cronEvaluator = cronEvaluator;
+        this.callbackUrlValidator = callbackUrlValidator;
     }
 
     @Override
     public void execute(Job job) {
+        if (!callbackUrlValidator.isAllowed(job.getCallback().getUrl())) {
+            log.warn("job={} callback URL failed validation at execution time, dead-lettering", job.getJobId());
+            deadLetterHandler.deadLetter(job, "callback URL failed validation");
+            return;
+        }
         int attempt = nextAttemptNumber(job);
         Instant startedAt = Instant.now();
         CallbackOutcome outcome = invokeCallback(job);

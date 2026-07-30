@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local dev secrets — never commit ###
+jwt-private.pem
+jwt-public.pem
+jwks.json

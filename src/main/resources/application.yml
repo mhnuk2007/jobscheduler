@@ -15,6 +15,12 @@ spring:
     enabled: true
     locations: db/migration
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: file:///D:/JobScheduler/jwt-public.pem
+
 scheduler:
   worker-id: ${HOSTNAME:worker-local}
   poll-interval-ms: 1000
@@ -25,7 +31,6 @@ retry:
   base-delay-ms: 2000
   max-delay-ms: 600000
 
-logging:
-  level:
-    org.springframework.jdbc: DEBUG
-    org.flywaydb: DEBUG
+callback:
+  allowed-domains: ${CALLBACK_ALLOWED_DOMAINS:}
+  denied-hosts: 169.254.169.254,localhost,127.0.0.1

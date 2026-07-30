@@ -11,6 +11,8 @@ import dev.mhnuk2007.jobscheduler.job.exception.JobNotFoundException;
 import dev.mhnuk2007.jobscheduler.job.repository.JobRepository;
 import dev.mhnuk2007.jobscheduler.job.repository.JobRunRepository;
 import dev.mhnuk2007.jobscheduler.scheduling.CronEvaluator;
+import dev.mhnuk2007.jobscheduler.security.CallbackUrlValidator;
+import dev.mhnuk2007.jobscheduler.security.CallbackUrlValidatorImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +26,21 @@ public class JobServiceImpl implements JobService {
     private final JobRepository jobRepository;
     private final JobRunRepository jobRunRepository;
     private final CronEvaluator cronEvaluator;
+    private final CallbackUrlValidator callbackUrlValidator;
 
-    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository, CronEvaluator cronEvaluator) {
+    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository, CronEvaluator cronEvaluator, CallbackUrlValidator callbackUrlValidator) {
         this.jobRepository = jobRepository;
         this.jobRunRepository = jobRunRepository;
         this.cronEvaluator = cronEvaluator;
+        this.callbackUrlValidator = callbackUrlValidator;
     }
 
     @Override
     @Transactional
     public Job submit(JobSubmitRequest request, String ownerId) {
+        if (!callbackUrlValidator.isAllowed(request.callback().url())){
+            throw new InvalidJobRequestException("callback URL is not permitted" + request.callback().url());
+        }
         if (request.idempotencyKey() != null) {
             Job existing = jobRepository.findByIdempotencyKey(request.idempotencyKey()).orElse(null);
             if (existing != null) {
