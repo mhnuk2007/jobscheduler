@@ -1,10 +1,8 @@
 package dev.mhnuk2007.jobscheduler.job.service;
 
+import dev.mhnuk2007.jobscheduler.execution.DeadLetterHandler;
 import dev.mhnuk2007.jobscheduler.job.api.dto.JobSubmitRequest;
-import dev.mhnuk2007.jobscheduler.job.domain.Callback;
-import dev.mhnuk2007.jobscheduler.job.domain.Job;
-import dev.mhnuk2007.jobscheduler.job.domain.JobRun;
-import dev.mhnuk2007.jobscheduler.job.domain.JobStatus;
+import dev.mhnuk2007.jobscheduler.job.domain.*;
 import dev.mhnuk2007.jobscheduler.job.exception.IllegalJobStateException;
 import dev.mhnuk2007.jobscheduler.job.exception.InvalidJobRequestException;
 import dev.mhnuk2007.jobscheduler.job.exception.JobNotFoundException;
@@ -12,7 +10,6 @@ import dev.mhnuk2007.jobscheduler.job.repository.JobRepository;
 import dev.mhnuk2007.jobscheduler.job.repository.JobRunRepository;
 import dev.mhnuk2007.jobscheduler.scheduling.CronEvaluator;
 import dev.mhnuk2007.jobscheduler.security.CallbackUrlValidator;
-import dev.mhnuk2007.jobscheduler.security.CallbackUrlValidatorImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,18 +24,20 @@ public class JobServiceImpl implements JobService {
     private final JobRunRepository jobRunRepository;
     private final CronEvaluator cronEvaluator;
     private final CallbackUrlValidator callbackUrlValidator;
+    private final DeadLetterHandler deadLetterHandler;
 
-    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository, CronEvaluator cronEvaluator, CallbackUrlValidator callbackUrlValidator) {
+    public JobServiceImpl(JobRepository jobRepository, JobRunRepository jobRunRepository, CronEvaluator cronEvaluator, CallbackUrlValidator callbackUrlValidator, DeadLetterHandler deadLetterHandler) {
         this.jobRepository = jobRepository;
         this.jobRunRepository = jobRunRepository;
         this.cronEvaluator = cronEvaluator;
         this.callbackUrlValidator = callbackUrlValidator;
+        this.deadLetterHandler = deadLetterHandler;
     }
 
     @Override
     @Transactional
     public Job submit(JobSubmitRequest request, String ownerId) {
-        if (!callbackUrlValidator.isAllowed(request.callback().url())){
+        if (!callbackUrlValidator.isAllowed(request.callback().url())) {
             throw new InvalidJobRequestException("callback URL is not permitted" + request.callback().url());
         }
         if (request.idempotencyKey() != null) {
@@ -91,6 +90,35 @@ public class JobServiceImpl implements JobService {
         jobRepository.save(job);
     }
 
+    @Override
+    @Transactional
+    public Job pauseOwned(String jobId, String ownerId) {
+        Job job = findOwnedOrThrow(jobId, ownerId);
+        requiredType(job, JobType.RECURRING, "pause");
+        job.setStatus(JobStatus.PAUSED);
+        return jobRepository.save(job);
+    }
+
+    @Override
+    @Transactional
+    public Job resumeOwned(String jobId, String ownerId) {
+        Job job = findOwnedOrThrow(jobId, ownerId);
+        requiredType(job, JobType.RECURRING, "resume");
+        if (job.getStatus() != JobStatus.PAUSED) {
+            throw new IllegalJobStateException("cannot resume job not currently PAUSED: " + jobId);
+        }
+        job.setStatus(JobStatus.SCHEDULED);
+        job.setNextRunAt(cronEvaluator.nextFireTime(job.getCronExpression(), Instant.now()));
+        return jobRepository.save(job);
+    }
+
+    @Override
+    @Transactional
+    public void replayOwned(String jobId, String ownerId) {
+        Job job = findOwnedOrThrow(jobId, ownerId);
+        deadLetterHandler.replay(job);
+    }
+
     private Job findOwnedOrThrow(String jobId, String ownerId) {
         Job job = jobRepository.findByJobId(jobId).orElseThrow(() -> new JobNotFoundException(jobId));
         if (!job.getOwnerId().equals(ownerId)) {
@@ -121,5 +149,11 @@ public class JobServiceImpl implements JobService {
                 .headers(cb.headers())
                 .body(cb.body())
                 .build();
+    }
+
+    private void requiredType(Job job, JobType expected, String action) {
+        if (job.getType() != expected) {
+            throw new IllegalJobStateException("cannot " + action + "a " + job.getType() + "job: " + job.getJobId());
+        }
     }
 }
