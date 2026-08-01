@@ -35,4 +35,5 @@ build/
 ### Local dev secrets — never commit ###
 jwt-private.pem
 jwt-public.pem
-jwks.jsonretry-test-output.log
+jwks.json
+retry-test-output.log
