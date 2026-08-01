@@ -46,5 +46,4 @@ public class JobMapper {
                 )).toList();
         return new JobRunsResponse(jobId, entries);
     }
-
 }
