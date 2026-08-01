@@ -41,7 +41,7 @@ public class CallbackUrlValidatorImpl implements CallbackUrlValidator {
             InetAddress resolved = InetAddress.getByName(host);
             return !resolved.isLoopbackAddress()
                     && !resolved.isLinkLocalAddress()
-                    && !resolved.isLinkLocalAddress()
+                    && !resolved.isSiteLocalAddress()
                     && !resolved.isAnyLocalAddress();
         } catch (IllegalArgumentException | UnknownHostException ex) {
             return false;
