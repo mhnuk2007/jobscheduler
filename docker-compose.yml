@@ -10,5 +10,18 @@ services:
     volumes:
       - job_scheduler_pgdata:/var/lib/postgresql/data
 
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_PASSWORD: "0000"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job_scheduler
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_PUBLIC_KEY_LOCATION: file:///app/jwt-public.pem
+    depends_on:
+      - postgres
+    volumes:
+      - ./jwt-public.pem:/app/jwt-public.pem:ro
+
 volumes:
   job_scheduler_pgdata:
